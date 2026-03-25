@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>道路摊铺助手</title>
+    
+    <!-- 智能加载SheetJS库 - 支持南美洲快速访问 -->
+    <script>
+        (function() {
+            // 多个CDN地址，确保在南美洲快速加载
+            const cdnUrls = [
+                // CloudFlare CDN (全球覆盖，南美洲表现良好)
+                'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.2/xlsx.full.min.js',
+                // jsDelivr CDN (全球多节点，南美洲有优化)
+                'https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js',
+                // 备份CDN
+                'https://unpkg.com/xlsx@0.20.2/dist/xlsx.full.min.js',
+                // SheetJS官方CDN
+                'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js'
+            ];
+            
+            // 加载超时时间（毫秒）
+            const TIMEOUT = 10000;
+            
+            // 尝试加载库
+            function loadXLSX(urlIndex = 0) {
+                if (urlIndex >= cdnUrls.length) {
+                    console.error('所有CDN加载失败，尝试使用离线备用方案');
+                    // 如果没有网络，会在这里处理
+                    setTimeout(checkXLSX, 2000);
+                    return;
+                }
+                
+                const url = cdnUrls[urlIndex];
+                console.log('尝试加载:', url);
+                
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = function() {
+                    console.log('✅ SheetJS库加载成功，来源:', url);
+                    // 库加载成功后启动应用程序
+                    setTimeout(initializeApp, 100);
+                };
+                script.onerror = function() {
+                    console.warn('❌ 加载失败:', url);
+                    // 尝试下一个CDN
+                    loadXLSX(urlIndex + 1);
+                };
+                
+                // 设置超时
+                setTimeout(function() {
+                    if (!window.XLSX) {
+                        console.warn('⏱️ 加载超时:', url);
+                        script.onerror = null;
+                        script.remove();
+                        loadXLSX(urlIndex + 1);
+                    }
+                }, TIMEOUT);
+                
+                document.head.appendChild(script);
+            }
+            
+            // 检查XLSX是否加载成功
+            function checkXLSX() {
+                if (typeof XLSX === 'undefined') {
+                    console.error('SheetJS库未加载');
+                    // 显示错误提示
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        background: #ef4444;
+                        color: white;
+                        padding: 12px;
+                        text-align: center;
+                        font-family: sans-serif;
+                        z-index: 10000;
+                    `;
+                    errorDiv.innerHTML = `
+                        <strong>网络连接问题</strong><br>
+                        无法加载Excel处理库。请检查网络连接后刷新页面。
+                    `;
+                    document.body.appendChild(errorDiv);
+                } else {
+                    console.log('✅ SheetJS版本:', XLSX.version);
+                }
+            }
+            
+            // 启动应用程序
+            function initializeApp() {
+                if (typeof XLSX === 'undefined') {
+                    checkXLSX();
+                    return;
+                }
+                
+                // 这里会放置您的应用程序代码
+                // 应用程序代码会在库加载完成后执行
+                if (window.appInitializer) {
+                    window.appInitializer();
+                }
+            }
+            
+            // 页面加载后开始加载库
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadXLSX();
+                });
+            } else {
+                loadXLSX();
+            }
+        })();
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f7fb;
+            padding: 12px;
+            padding-bottom: 20px;
+            color: #1e293b;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header-card {
+            background: white;
+            border-radius: 18px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        }
+        h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #1f5e3a;
+            margin-bottom: 6px;
+        }
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: #e2e8f0;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #475569;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            background: #1f5e3a;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .upload-area {
+            background: white;
+            border: 2px dashed #cbd5e1;
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+        .upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #1f5e3a;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        input#fileInput { display: none; }
+        .file-info {
+            margin-top: 8px;
+            font-size: 0.65rem;
+            color: #2c6e3f;
+        }
+        .param-card {
+            background: white;
+            border-radius: 16px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+        .param-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .param-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .param-item label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #475569;
+            white-space: nowrap;
+        }
+        .param-item input, .param-item select {
+            width: 80px;
+            padding: 6px 8px;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            font-size: 0.7rem;
+            text-align: center;
+        }
+        button {
+            background: #1f5e3a;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .secondary-btn { background: #475569; }
+        .help-btn { 
+            background: #4f46e5; 
+            padding: 6px 12px;
+        }
+        .export-btn { 
+            background: #059669; 
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .detail-all-btn { 
+            background: #4f46e5; 
+            margin-right: 8px;
+        }
+        .station-card {
+            background: white;
+            border-radius: 16px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .card-header {
+            background: #1e2a3a;
+            color: white;
+            padding: 10px 12px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .card-content {
+            padding: 12px;
+        }
+        .sides-row {
+            display: flex;
+            gap: 10px;
+        }
+        .side-column {
+            flex: 1;
+        }
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .data-label {
+            font-size: 0.65rem;
+            color: #6b7280;
+        }
+        .data-value {
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .result-value {
+            background: #fef3c7;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .material-summary {
+            background: #f0fdf4;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 12px;
+            border: 1px solid #bbf7d0;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            border-radius: 12px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            font-size: 0.65rem;
+        }
+        .note-text {
+            font-size: 0.6rem;
+            color: #6b7280;
+            text-align: center;
+            margin-top: 8px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 30px 20px;
+            color: #6c7a91;
+            background: white;
+            border-radius: 16px;
+        }
+        .data-table {
+            width: 100%;
+            font-size: 0.7rem;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        .data-table th {
+            background: #f1f5f9;
+            padding: 8px 6px;
+            border: 1px solid #cbd5e1;
+            text-align: center;
+        }
+        .data-table td {
+            padding: 8px 6px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+        .data-table .total-row {
+            background-color: #e0f2fe;
+            font-weight: bold;
+        }
+        .data-table .total-row td {
+            border-top: 2px solid #0ea5e9;
+        }
+        
+        /* 详细数据区域样式 */
+        .detail-content {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            display: none;
+        }
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .detail-label {
+            font-size: 0.65rem;
+            color: #4b5563;
+        }
+        .detail-value {
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .detail-section {
+            margin-bottom: 12px;
+        }
+        .detail-section-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #d1d5db;
+        }
+        
+        /* 帮助模态框样式 */
+        .help-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #64748b;
+        }
+        .help-section {
+            margin-bottom: 20px;
+        }
+        .help-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .help-content {
+            font-size: 0.8rem;
+            color: #475569;
+            line-height: 1.6;
+        }
+        .help-content ul {
+            padding-left: 20px;
+            margin: 8px 0;
+        }
+        .help-content li {
+            margin-bottom: 6px;
+        }
+        .example-box {
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 8px;
+        }
+        
+        .footer-note {
+            font-size: 0.55rem;
+            text-align: center;
+            color: #8b9ab0;
+            margin-top: 12px;
+        }
+        
+        /* 顶部帮助按钮样式 */
+        .top-help-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: #4f46e5;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        /* 加载指示器样式 */
+        .loading-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #1f5e3a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<!-- 加载指示器 -->
+<div id="loadingIndicator" class="loading-indicator">
+    <div class="spinner"></div>
+    <div style="margin-top: 16px; font-size: 0.8rem; color: #475569;">
+        加载道路摊铺助手...
+    </div>
+</div>
+
+<!-- 顶部帮助按钮 -->
+<div class="top-help-btn" onclick="showHelp()">?</div>
+
+<div class="container">
+    <div class="header-card">
+        <div class="header-actions">
+            <h1>🛣️ 道路摊铺助手</h1>
+            <button class="help-btn" onclick="showHelp()">使用说明</button>
+        </div>
+        <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="wire">挂线计算</button>
+            <button class="tab-btn" data-tab="material">填料计算</button>
+        </div>
+    </div>
+
+    <div class="upload-area" id="uploadArea">
+        <div class="upload-btn" onclick="document.getElementById('fileInput').click()">📂 上传 Excel 文件</div>
+        <div class="file-info" id="fileInfo">未加载文件 (需要 里程、偏距、目标高、边桩高 列)</div>
+        <input type="file" id="fileInput" accept=".xls, .xlsx">
+    </div>
+
+    <!-- 挂线计算界面 -->
+    <div id="wireTab" class="tab-content active">
+        <div class="param-card" id="wireParamCard" style="display:none;">
+            <div class="param-row" style="justify-content: space-between;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div class="param-item">
+                        <label>松铺系数</label>
+                        <input type="number" id="spreadCoeff" step="0.01" value="1.25">
+                    </div>
+                    <div class="param-item">
+                        <label>挂线高(cm)</label>
+                        <input type="number" id="wireHeight" step="1" value="20">
+                    </div>
+                    <button id="calcWireBtn">计算</button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button id="toggleAllDetailBtn" class="detail-all-btn" style="display:none;">📊 显示详细数据</button>
+                    <button id="exportWireBtn" class="export-btn" style="display:none;">📤 导出Excel</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="wireCardContainer"></div>
+    </div>
+
+    <!-- 填料计算界面 -->
+    <div id="materialTab" class="tab-content">
+        <div class="param-card" id="materialParamCard" style="display:none;">
+            <div class="param-row" style="justify-content: space-between;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div class="param-item">
+                        <label>松铺系数</label>
+                        <input type="number" id="materialCoeff" step="0.01" value="1.25">
+                    </div>
+                    <div class="param-item">
+                        <label>宽度计算</label>
+                        <select id="widthCalcMode">
+                            <option value="auto">自动(按偏距)</option>
+                            <option value="manual">手动输入</option>
+                        </select>
+                    </div>
+                    <div class="param-item" id="manualWidthDiv" style="display:none;">
+                        <label>宽度(m)</label>
+                        <input type="number" id="manualWidth" step="0.1" value="7.5">
+                    </div>
+                </div>
+                <button id="exportFillBtn" class="export-btn" style="display:none;">📤 导出Excel</button>
+            </div>
+        </div>
+        
+        <!-- 填料计算结果表格 -->
+        <div id="materialResults" style="display:none;">
+            <div class="param-card">
+                <div class="param-row" style="justify-content: space-between;">
+                    <div>
+                        <span>📊 桩号总数: <strong id="stationCount">0</strong></span>
+                        <span style="margin-left: 16px;">📏 总长度: <strong id="totalLength">0</strong> m</span>
+                        <span style="margin-left: 16px;">🧱 总填料: <strong id="totalFill">0</strong> m³</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="station-card">
+                <div class="card-header">📊 填料工程量明细表</div>
+                <div class="card-content">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>桩号</th>
+                                <th>断面宽度(m)</th>
+                                <th>断面面积(m²)</th>
+                                <th>桩号间距(m)</th>
+                                <th>填料量(m³)</th>
+                                <th>累计填料量(m³)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="materialTableBody">
+                            <!-- 动态生成 -->
+                        </tbody>
+                        <tfoot id="materialTableFooter">
+                            <!-- 合计行动态生成 -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 帮助模态框 -->
+<div class="help-modal" id="helpModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">🛣️ 道路摊铺助手 - 使用说明</div>
+            <button class="close-btn" onclick="closeHelp()">×</button>
+        </div>
+        
+        <div class="help-section">
+            <div class="help-title">📁 文件要求</div>
+            <div class="help-content">
+                <p>Excel文件必须包含以下列：</p>
+                <ul>
+                    <li><strong>里程</strong>：桩号位置，支持格式：K5+520, DK11+200, ZK3+150, RK8+450等</li>
+                    <li><strong>偏距</strong>：测量点距离中线的距离（单位：米）</li>
+                    <li><strong>目标高</strong>：实测高程（单位：米）</li>
+                    <li><strong>边桩高(层底高)</strong>：设计高程（单位：米）</li>
+                </ul>
+                <div class="example-box">
+                    <strong>示例数据：</strong><br>
+                    里程: DK11+740, 偏距: 0, 目标高: 17.623, 边桩高: 17.124<br>
+                    里程: DK11+740, 偏距: 0, 目标高: 16.964, 边桩高: 17.124<br>
+                    <em>同一偏距的两个点会自动配对：高程高的为钢钎顶(挖)，低的为地面(填)</em>
+                </div>
+            </div>
+        </div>
+        
+        <div class="help-section">
+            <div class="help-title">📊 挂线计算</div>
+            <div class="help-content">
+                <p><strong>填挖方计算：</strong></p>
+                <p>差值 = 目标高(实测) - 边桩高(设计)</p>
+                <p>差值 > 0：实测高于设计，需要挖方</p>
+                <p>差值 < 0：实测低于设计，需要填方</p>
+                
+                <p><strong>挂线位置计算公式：</strong></p>
+                <p>挂线位置(cm) = 向下量 - 向上量 × (松铺系数 - 1) - 挂线高</p>
+                <p>向下/向上量 = 目标高 - 边桩高 (正值=向下/挖，负值=向上/填)</p>
+                
+                <p><strong>使用步骤：</strong></p>
+                <ul>
+                    <li>1. 上传Excel文件</li>
+                    <li>2. 设置松铺系数和挂线高度</li>
+                    <li>3. 点击"计算"按钮</li>
+                    <li>4. 点击"显示详细数据"查看原始测量值</li>
+                    <li>5. 点击"导出Excel"保存结果</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="help-section">
+            <div class="help-title">🧱 填料计算</div>
+            <div class="help-content">
+                <p><strong>计算公式：</strong></p>
+                <ul>
+                    <li>填料厚度 = 边桩高(设计) - 目标高(实测) (正值=填方)</li>
+                    <li>断面宽度 = 最大偏距 - 最小偏距</li>
+                    <li>断面面积 = Σ(填料厚度 × 分段宽度)</li>
+                    <li>本段填料量 = 断面面积 × 桩号间距</li>
+                    <li>总填料量 = Σ(本段填料量)</li>
+                </ul>
+                
+                <p><strong>使用步骤：</strong></p>
+                <ul>
+                    <li>1. 切换到"填料计算"标签页</li>
+                    <li>2. 自动计算填料工程量</li>
+                    <li>3. 查看明细表和汇总统计</li>
+                    <li>4. 点击"导出Excel"保存结果</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="help-section">
+            <div class="help-title">⚠️ 注意事项</div>
+            <div class="help-content">
+                <ul>
+                    <li>同一偏距点需要两个高程测量值才能计算挂线位置</li>
+                    <li>程序支持多种桩号格式：K, DK, ZK, RK, EK, WK等</li>
+                    <li>填料计算只计算填方(正厚度)数据</li>
+                    <li>断面宽度可根据偏距自动计算或手动输入</li>
+                    <li>本程序支持离线使用，无需网络连接</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="help-section">
+            <div class="help-title">🌍 网络优化</div>
+            <div class="help-content">
+                <p>本程序特别优化了南美洲用户的访问体验：</p>
+                <ul>
+                    <li>使用多个全球CDN，确保快速加载</li>
+                    <li>自动选择最快的CDN节点</li>
+                    <li>支持离线回退机制</li>
+                    <li>10秒超时自动切换备用源</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 应用程序初始化函数
+    window.appInitializer = function() {
+        // 隐藏加载指示器
+        document.getElementById('loadingIndicator').style.display = 'none';
+        
+        // 验证SheetJS库是否加载成功
+        if (typeof XLSX === 'undefined') {
+            alert('错误：SheetJS库加载失败\n\n请检查网络连接后刷新页面。');
+            return;
+        }
+        
+        console.log('🚀 道路摊铺助手启动，SheetJS版本:', XLSX.version);
+        
+        // 您的应用程序代码从这里开始
+        let rawData = [];
+        let allStations = [];
+        let stationPositions = new Map();
+        let currentWireData = [];
+        let currentFillResults = null;
+        let isAllDetailsVisible = false;
+        let isFileLoaded = false;
+        let currentTab = 'wire';
+        
+        // DOM元素
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const wireTab = document.getElementById('wireTab');
+        const materialTab = document.getElementById('materialTab');
+        const wireParamCard = document.getElementById('wireParamCard');
+        const materialParamCard = document.getElementById('materialParamCard');
+        const materialResults = document.getElementById('materialResults');
+        const wireCardContainer = document.getElementById('wireCardContainer');
+        const materialTableBody = document.getElementById('materialTableBody');
+        const materialTableFooter = document.getElementById('materialTableFooter');
+        const exportWireBtn = document.getElementById('exportWireBtn');
+        const exportFillBtn = document.getElementById('exportFillBtn');
+        const toggleAllDetailBtn = document.getElementById('toggleAllDetailBtn');
+        const helpModal = document.getElementById('helpModal');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        
+        // 按钮
+        const calcWireBtn = document.getElementById('calcWireBtn');
+        
+        // 参数输入
+        const spreadCoeffInput = document.getElementById('spreadCoeff');
+        const wireHeightInput = document.getElementById('wireHeight');
+        const materialCoeffInput = document.getElementById('materialCoeff');
+        const widthCalcMode = document.getElementById('widthCalcMode');
+        const manualWidthDiv = document.getElementById('manualWidthDiv');
+        const manualWidthInput = document.getElementById('manualWidth');
+        
+        // 统计显示
+        const stationCountSpan = document.getElementById('stationCount');
+        const totalLengthSpan = document.getElementById('totalLength');
+        const totalFillSpan = document.getElementById('totalFill');
+
+        // 帮助模态框
+        function showHelp() {
+            helpModal.style.display = 'flex';
+        }
+        
+        function closeHelp() {
+            helpModal.style.display = 'none';
+        }
+        
+        // 点击模态框外部关闭
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                closeHelp();
+            }
+        });
+
+        // Tab切换
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabId = btn.dataset.tab;
+                tabButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                
+                document.getElementById(tabId + 'Tab').classList.add('active');
+                currentTab = tabId;
+                
+                // 如果已加载文件，自动计算当前标签页的内容
+                if (isFileLoaded) {
+                    if (tabId === 'wire') {
+                        calculateWire();
+                    } else if (tabId === 'material') {
+                        calculateMaterial();
+                    }
+                }
+            });
+        });
+
+        // 宽度计算模式切换
+        widthCalcMode.addEventListener('change', function() {
+            manualWidthDiv.style.display = this.value === 'manual' ? 'flex' : 'none';
+        });
+
+        // 改进的桩号解析函数
+        function parseMileageToNumber(mileage) {
+            // 支持多种桩号格式：K5+520, DK5+520, ZK5+520, RK5+520, EK5+520, WK5+520等
+            const match = mileage.match(/([A-Za-z]*K)?(\d+)\+(\d+)/);
+            if (match) {
+                const km = parseInt(match[2]) || 0;
+                const meter = parseInt(match[3]) || 0;
+                return km * 1000 + meter;
+            }
+            return null;
+        }
+
+        // 解析Excel数据
+        function parseExcelData(arrayBuffer) {
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            let sheetName = "水准_0";
+            let worksheet = workbook.Sheets[sheetName];
+            if (!worksheet) {
+                sheetName = workbook.SheetNames[0];
+                worksheet = workbook.Sheets[sheetName];
+            }
+            const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+            if (!rows || rows.length < 2) throw new Error("表格无数据");
+
+            const headers = rows[0].map(c => String(c || "").trim());
+            const colMap = { 
+                '里程': -1, 
+                '偏距': -1, 
+                '目标高': -1, 
+                '边桩高(层底高)': -1 
+            };
+            
+            for (let i = 0; i < headers.length; i++) {
+                if (colMap.hasOwnProperty(headers[i])) colMap[headers[i]] = i;
+            }
+            
+            if (colMap['里程'] === -1 || colMap['偏距'] === -1) {
+                throw new Error("缺少必要列: 里程 或 偏距");
+            }
+            if (colMap['目标高'] === -1) {
+                throw new Error("缺少必要列: 目标高");
+            }
+            if (colMap['边桩高(层底高)'] === -1) {
+                throw new Error("缺少必要列: 边桩高(层底高)");
+            }
+
+            const records = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row || row.length === 0) continue;
+                
+                let mileage = row[colMap['里程']] ? String(row[colMap['里程']]).trim() : "";
+                if (!mileage) continue;
+
+                let offsetRaw = row[colMap['偏距']];
+                let offsetNum = parseNumber(offsetRaw);
+                if (isNaN(offsetNum)) offsetNum = 0;
+
+                // 目标高（实测高程）
+                let targetH = null;
+                let targetRaw = row[colMap['目标高']];
+                let targetNum = parseNumber(targetRaw);
+                if (!isNaN(targetNum)) targetH = targetNum;
+                
+                // 边桩高(层底高)（设计高程）
+                let edgeH = null;
+                let edgeRaw = row[colMap['边桩高(层底高)']];
+                let edgeNum = parseNumber(edgeRaw);
+                if (!isNaN(edgeNum)) edgeH = edgeNum;
+
+                if (targetH !== null && edgeH !== null) {
+                    const mileageNum = parseMileageToNumber(mileage);
+                    if (mileageNum !== null) {
+                        stationPositions.set(mileage, mileageNum);
+                    }
+                    
+                    // 计算填挖方
+                    // 差值 = 目标高(实测) - 边桩高(设计)
+                    // 正值：实测高于设计，需要挖方
+                    // 负值：实测低于设计，需要填方
+                    let diff = targetH - edgeH;
+                    let moveType = diff >= 0 ? "挖" : "填";
+                    let moveValue = Math.abs(diff);
+                    
+                    records.push({
+                        mileage: mileage,
+                        mileageNum: mileageNum,
+                        offset: offsetNum,
+                        targetHeight: targetH,    // 实测高
+                        edgeHeight: edgeH,       // 设计高
+                        moveType: moveType,
+                        moveValue: moveValue,
+                        diff: diff
+                    });
+                }
+            }
+            
+            if (records.length === 0) throw new Error("没有有效数据行");
+            
+            // 按桩号排序
+            records.sort((a, b) => {
+                if (a.mileageNum !== b.mileageNum) return a.mileageNum - b.mileageNum;
+                return a.offset - b.offset;
+            });
+            
+            return records;
+        }
+
+        // 计算挂线位置
+        function calculateWirePos(downCm, upCm, spreadCoeff, wireHeightCm) {
+            if (downCm === null || upCm === null) return null;
+            return downCm - upCm * (spreadCoeff - 1) - wireHeightCm;
+        }
+
+        // 分组桩号数据
+        function groupDataByStation(data) {
+            const groups = {};
+            data.forEach(record => {
+                if (!groups[record.mileage]) {
+                    groups[record.mileage] = {
+                        mileage: record.mileage,
+                        mileageNum: record.mileageNum,
+                        offsets: new Map(),
+                        allOffsets: []
+                    };
+                }
+                const group = groups[record.mileage];
+                if (!group.offsets.has(record.offset)) {
+                    group.offsets.set(record.offset, []);
+                    group.allOffsets.push(record.offset);
+                }
+                group.offsets.get(record.offset).push(record);
+            });
+            return groups;
+        }
+
+        // 计算挂线数据
+        function calculateWireData(stationGroups, coeff, wireHeight) {
+            const results = [];
+            
+            Object.values(stationGroups).forEach(station => {
+                const offsets = [...station.offsets.keys()].sort((a, b) => a - b);
+                
+                let leftData = null, rightData = null, centerData = null;
+                
+                // 找出左右侧有配对数据的偏距
+                const pairedOffsets = [];
+                offsets.forEach(offset => {
+                    const points = station.offsets.get(offset);
+                    if (points.length >= 2) {
+                        pairedOffsets.push(offset);
+                    }
+                });
+                
+                if (pairedOffsets.length >= 2) {
+                    // 最小偏距作为左侧，最大偏距作为右侧
+                    leftData = processPairedOffset(pairedOffsets[0], station.offsets.get(pairedOffsets[0]));
+                    rightData = processPairedOffset(pairedOffsets[pairedOffsets.length-1], station.offsets.get(pairedOffsets[pairedOffsets.length-1]));
+                } else if (pairedOffsets.length === 1) {
+                    const onlyData = processPairedOffset(pairedOffsets[0], station.offsets.get(pairedOffsets[0]));
+                    if (offsets.length > 1) {
+                        const avgOffset = offsets.reduce((a, b) => a + b) / offsets.length;
+                        if (pairedOffsets[0] < avgOffset) {
+                            leftData = onlyData;
+                        } else {
+                            rightData = onlyData;
+                        }
+                    } else {
+                        leftData = onlyData;
+                    }
+                }
+                
+                // 中心点
+                const singleOffsets = offsets.filter(offset => station.offsets.get(offset).length === 1);
+                if (singleOffsets.length > 0) {
+                    const centerOffset = singleOffsets.find(off => {
+                        const leftBound = leftData ? leftData.offset : -Infinity;
+                        const rightBound = rightData ? rightData.offset : Infinity;
+                        return off > leftBound && off < rightBound;
+                    }) || singleOffsets[0];
+                    
+                    const point = station.offsets.get(centerOffset)[0];
+                    centerData = {
+                        offset: centerOffset,
+                        value: point.moveValue,
+                        type: point.moveType,
+                        downValue: point.moveType === '挖' ? point.moveValue : null,
+                        upValue: point.moveType === '填' ? point.moveValue : null
+                    };
+                }
+                
+                // 计算挂线位置
+                let leftWirePos = null, rightWirePos = null;
+                if (leftData) {
+                    leftWirePos = calculateWirePos(leftData.downValue * 100, leftData.upValue * 100, coeff, wireHeight);
+                }
+                if (rightData) {
+                    rightWirePos = calculateWirePos(rightData.downValue * 100, rightData.upValue * 100, coeff, wireHeight);
+                }
+                
+                results.push({
+                    mileage: station.mileage,
+                    leftWirePos: leftWirePos,
+                    rightWirePos: rightWirePos,
+                    leftData: leftData,
+                    rightData: rightData,
+                    centerData: centerData
+                });
+            });
+            
+            return results.sort((a, b) => parseMileageToNumber(a.mileage) - parseMileageToNumber(b.mileage));
+        }
+
+        function processPairedOffset(offset, points) {
+            if (points.length < 2) return null;
+            const sorted = [...points].sort((a, b) => b.targetHeight - a.targetHeight);
+            return {
+                offset: offset,
+                downValue: sorted[0].moveValue,  // 高程高的为挖
+                upValue: sorted[1].moveValue,    // 高程低的为填
+                highPoint: sorted[0],
+                lowPoint: sorted[1]
+            };
+        }
+
+        // 导出挂线计算结果
+        function exportWireResults() {
+            if (!currentWireData || currentWireData.length === 0) {
+                alert("请先计算挂线位置");
+                return;
+            }
+            
+            const exportData = currentWireData.map((station, index) => {
+                const row = {
+                    "序号": index + 1,
+                    "桩号": station.mileage,
+                    "左侧挂线位置(cm)": station.leftWirePos !== null ? station.leftWirePos.toFixed(1) : "",
+                    "右侧挂线位置(cm)": station.rightWirePos !== null ? station.rightWirePos.toFixed(1) : "",
+                    "左侧偏距(m)": station.leftData ? station.leftData.offset.toFixed(2) : "",
+                    "右侧偏距(m)": station.rightData ? station.rightData.offset.toFixed(2) : ""
+                };
+                
+                if (station.leftData) {
+                    row["左侧钢钎顶(挖) cm"] = (station.leftData.downValue * 100).toFixed(1);
+                    row["左侧地面(填) cm"] = (station.leftData.upValue * 100).toFixed(1);
+                }
+                
+                if (station.rightData) {
+                    row["右侧钢钎顶(挖) cm"] = (station.rightData.downValue * 100).toFixed(1);
+                    row["右侧地面(填) cm"] = (station.rightData.upValue * 100).toFixed(1);
+                }
+                
+                if (station.centerData) {
+                    row["中心偏距(m)"] = station.centerData.offset.toFixed(2);
+                    row["中心填挖"] = station.centerData.type;
+                    row["中心高度(cm)"] = (station.centerData.value * 100).toFixed(1);
+                }
+                
+                return row;
+            });
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "挂线计算详细结果");
+            
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const filename = `挂线计算详细结果_${dateStr}.xlsx`;
+            
+            XLSX.writeFile(wb, filename);
+        }
+
+        // 切换所有详细数据
+        function toggleAllDetails() {
+            isAllDetailsVisible = !isAllDetailsVisible;
+            
+            currentWireData.forEach(station => {
+                const detailElement = document.getElementById(`detail-${escapeHtml(station.mileage)}`);
+                if (detailElement) {
+                    detailElement.style.display = isAllDetailsVisible ? 'block' : 'none';
+                }
+            });
+            
+            toggleAllDetailBtn.textContent = isAllDetailsVisible ? '📊 隐藏详细数据' : '📊 显示详细数据';
+        }
+
+        // 计算填料工程量
+        function calculateFillMaterial(stationGroups, coeff, widthMode, manualWidth) {
+            const stations = Object.values(stationGroups).sort((a, b) => a.mileageNum - b.mileageNum);
+            const results = [];
+            let totalFillCompact = 0;
+            let totalWidth = 0;
+            let totalArea = 0;
+            let totalDistance = 0;
+            
+            stations.forEach((station, index) => {
+                const offsets = station.allOffsets.sort((a, b) => a - b);
+                const minOffset = Math.min(...offsets);
+                const maxOffset = Math.max(...offsets);
+                
+                const autoWidth = maxOffset - minOffset;
+                const sectionWidth = widthMode === 'manual' ? manualWidth : autoWidth;
+                
+                let stationFillArea = 0;
+                
+                offsets.forEach((offset, offsetIndex) => {
+                    const points = station.offsets.get(offset);
+                    
+                    points.forEach(point => {
+                        // 填料厚度 = 边桩高(设计) - 目标高(实测)
+                        // 正值 = 填方
+                        const fillThickness = point.edgeHeight - point.targetHeight;
+                        
+                        if (fillThickness > 0) {
+                            let segmentWidth = 0;
+                            if (offsets.length === 1) {
+                                segmentWidth = sectionWidth;
+                            } else if (offsetIndex === 0) {
+                                segmentWidth = (offsets[1] - offsets[0]) / 2;
+                            } else if (offsetIndex === offsets.length - 1) {
+                                segmentWidth = (offsets[offsetIndex] - offsets[offsetIndex-1]) / 2;
+                            } else {
+                                segmentWidth = (offsets[offsetIndex+1] - offsets[offsetIndex-1]) / 2;
+                            }
+                            
+                            const fillArea = fillThickness * segmentWidth;
+                            stationFillArea += fillArea;
+                        }
+                    });
+                });
+                
+                let stationDistance = 0;
+                if (index > 0) {
+                    const prevPos = stations[index-1].mileageNum;
+                    const currPos = station.mileageNum;
+                    stationDistance = currPos - prevPos;
+                }
+                
+                const stationFillVolume = stationFillArea * stationDistance;
+                totalFillCompact += stationFillVolume;
+                
+                totalWidth += sectionWidth;
+                totalArea += stationFillArea;
+                if (index > 0) totalDistance += stationDistance;
+                
+                results.push({
+                    mileage: station.mileage,
+                    mileageNum: station.mileageNum,
+                    sectionWidth: sectionWidth,
+                    stationArea: stationFillArea,
+                    stationDistance: stationDistance,
+                    stationFillVolume: stationFillVolume,
+                    cumulativeFillVolume: totalFillCompact
+                });
+            });
+            
+            const totalLength = stations.length > 1 ? 
+                stations[stations.length-1].mileageNum - stations[0].mileageNum : 0;
+            
+            return {
+                results: results,
+                totalFillCompact: totalFillCompact,
+                totalLength: totalLength,
+                stationCount: stations.length,
+                totals: {
+                    avgWidth: stations.length > 0 ? totalWidth / stations.length : 0,
+                    totalArea: totalArea,
+                    totalDistance: totalDistance
+                }
+            };
+        }
+
+        // 导出填料计算结果
+        function exportFillResults() {
+            if (!currentFillResults || !currentFillResults.results || currentFillResults.results.length === 0) {
+                alert("请先计算填料工程量");
+                return;
+            }
+            
+            const exportData = currentFillResults.results.map((result, index) => ({
+                "序号": index + 1,
+                "桩号": result.mileage,
+                "断面宽度(m)": result.sectionWidth.toFixed(2),
+                "断面面积(m²)": result.stationArea.toFixed(3),
+                "桩号间距(m)": index === 0 ? "" : result.stationDistance.toFixed(1),
+                "填料量(m³)": result.stationFillVolume.toFixed(2),
+                "累计填料量(m³)": result.cumulativeFillVolume.toFixed(2)
+            }));
+            
+            exportData.push({
+                "序号": "合计",
+                "桩号": "",
+                "断面宽度(m)": "",
+                "断面面积(m²)": "",
+                "桩号间距(m)": currentFillResults.totalLength.toFixed(1),
+                "填料量(m³)": currentFillResults.totalFillCompact.toFixed(2),
+                "累计填料量(m³)": currentFillResults.totalFillCompact.toFixed(2)
+            });
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "填料工程量汇总");
+            
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const filename = `填料工程量计算结果_${dateStr}.xlsx`;
+            
+            XLSX.writeFile(wb, filename);
+        }
+
+        // 渲染挂线界面
+        function renderWireInterface(wireData) {
+            if (!wireData || wireData.length === 0) {
+                wireCardContainer.innerHTML = `<div class="empty-state">无挂线计算结果</div>`;
+                toggleAllDetailBtn.style.display = 'none';
+                exportWireBtn.style.display = 'none';
+                return;
+            }
+            
+            let html = '';
+            wireData.forEach(station => {
+                html += `
+                    <div class="station-card" data-mileage="${escapeHtml(station.mileage)}">
+                        <div class="card-header">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>📍 ${escapeHtml(station.mileage)}</span>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="sides-row">
+                                <div class="side-column">
+                                    <div class="data-item">
+                                        <span class="data-label">左侧挂线</span>
+                                        <span class="result-value">${station.leftWirePos !== null ? station.leftWirePos.toFixed(1) + ' cm' : '—'}</span>
+                                    </div>
+                                </div>
+                                <div class="side-column">
+                                    <div class="data-item">
+                                        <span class="data-label">右侧挂线</span>
+                                        <span class="result-value">${station.rightWirePos !== null ? station.rightWirePos.toFixed(1) + ' cm' : '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="detail-${escapeHtml(station.mileage)}" class="detail-content" style="display: ${isAllDetailsVisible ? 'block' : 'none'}">
+                                ${renderDetailContent(station)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            wireCardContainer.innerHTML = html;
+            toggleAllDetailBtn.style.display = 'flex';
+            exportWireBtn.style.display = 'flex';
+        }
+
+        // 渲染详细数据内容
+        function renderDetailContent(station) {
+            let detailHtml = '';
+            
+            if (station.leftData) {
+                detailHtml += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">左侧测量数据 (偏距: ${station.leftData.offset.toFixed(2)}m)</div>
+                        <div class="detail-item">
+                            <span class="detail-label">钢钎顶(挖):</span>
+                            <span class="detail-value" style="color: #b91c1c;">${(station.leftData.downValue * 100).toFixed(1)} cm</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">地面(填):</span>
+                            <span class="detail-value" style="color: #146b3a;">${(station.leftData.upValue * 100).toFixed(1)} cm</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (station.rightData) {
+                detailHtml += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">右侧测量数据 (偏距: ${station.rightData.offset.toFixed(2)}m)</div>
+                        <div class="detail-item">
+                            <span class="detail-label">钢钎顶(挖):</span>
+                            <span class="detail-value" style="color: #b91c1c;">${(station.rightData.downValue * 100).toFixed(1)} cm</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">地面(填):</span>
+                            <span class="detail-value" style="color: #146b3a;">${(station.rightData.upValue * 100).toFixed(1)} cm</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (station.centerData) {
+                detailHtml += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">中心测量数据 (偏距: ${station.centerData.offset.toFixed(2)}m)</div>
+                        <div class="detail-item">
+                            <span class="detail-label">${station.centerData.type}:</span>
+                            <span class="detail-value" style="color: ${station.centerData.type === '挖' ? '#b91c1c' : '#146b3a'};">${(station.centerData.value * 100).toFixed(1)} cm</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return detailHtml;
+        }
+
+        // 渲染填料表格
+        function renderMaterialTable(fillResults) {
+            if (!fillResults.results || fillResults.results.length === 0) {
+                materialTableBody.innerHTML = '<tr><td colspan="7">无填方数据</td></tr>';
+                materialTableFooter.innerHTML = '';
+                exportFillBtn.style.display = 'none';
+                return;
+            }
+            
+            stationCountSpan.innerText = fillResults.stationCount;
+            totalLengthSpan.innerText = fillResults.totalLength.toFixed(1);
+            totalFillSpan.innerText = fillResults.totalFillCompact.toFixed(2);
+            
+            let html = '';
+            fillResults.results.forEach((result, index) => {
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${escapeHtml(result.mileage)}</td>
+                        <td>${result.sectionWidth.toFixed(2)}</td>
+                        <td>${result.stationArea.toFixed(3)}</td>
+                        <td>${index === 0 ? '—' : result.stationDistance.toFixed(1)}</td>
+                        <td>${result.stationFillVolume.toFixed(2)}</td>
+                        <td>${result.cumulativeFillVolume.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            
+            materialTableBody.innerHTML = html;
+            
+            let footerHtml = `
+                <tr class="total-row">
+                    <td colspan="2"><strong>合计</strong></td>
+                    <td>${(fillResults.totals.totalArea > 0 ? fillResults.totals.avgWidth.toFixed(2) : '—')}</td>
+                    <td>${fillResults.totals.totalArea.toFixed(3)}</td>
+                    <td>${fillResults.totalLength.toFixed(1)}</td>
+                    <td><strong>${fillResults.totalFillCompact.toFixed(2)}</strong></td>
+                    <td><strong>${fillResults.totalFillCompact.toFixed(2)}</strong></td>
+                </tr>
+            `;
+            
+            materialTableFooter.innerHTML = footerHtml;
+            materialResults.style.display = 'block';
+            exportFillBtn.style.display = 'flex';
+        }
+
+        // 加载Excel文件
+        function loadExcelFile(file) {
+            if (!file) return;
+            fileInfo.innerHTML = `📄 读取中...`;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const records = parseExcelData(e.target.result);
+                    rawData = records;
+                    allStations = records;
+                    isFileLoaded = true;
+                    
+                    fileInfo.innerHTML = `✅ 加载 ${rawData.length} 条记录`;
+                    wireParamCard.style.display = 'block';
+                    materialParamCard.style.display = 'block';
+                    
+                    if (currentTab === 'wire') {
+                        calculateWire();
+                    } else if (currentTab === 'material') {
+                        calculateMaterial();
+                    }
+                    
+                } catch (err) {
+                    wireCardContainer.innerHTML = `<div class="empty-state">❌ 解析失败: ${err.message}</div>`;
+                    fileInfo.innerHTML = `⚠️ 失败: ${err.message}`;
+                    wireParamCard.style.display = 'none';
+                    materialParamCard.style.display = 'none';
+                    toggleAllDetailBtn.style.display = 'none';
+                    exportWireBtn.style.display = 'none';
+                    exportFillBtn.style.display = 'none';
+                }
+            };
+            reader.onerror = () => fileInfo.innerHTML = "❌ 读取失败";
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 计算挂线
+        function calculateWire() {
+            if (rawData.length === 0) return;
+            
+            const coeff = parseFloat(spreadCoeffInput.value);
+            const wireHeight = parseFloat(wireHeightInput.value);
+            
+            const stationGroups = groupDataByStation(rawData);
+            const wireData = calculateWireData(stationGroups, coeff, wireHeight);
+            currentWireData = wireData;
+            
+            renderWireInterface(wireData);
+        }
+
+        // 计算填料
+        function calculateMaterial() {
+            if (rawData.length === 0) return;
+            
+            const coeff = parseFloat(materialCoeffInput.value);
+            const widthMode = widthCalcMode.value;
+            const manualWidth = parseFloat(manualWidthInput.value);
+            
+            const stationGroups = groupDataByStation(rawData);
+            const fillResults = calculateFillMaterial(stationGroups, coeff, widthMode, manualWidth);
+            currentFillResults = fillResults;
+            
+            renderMaterialTable(fillResults);
+        }
+
+        // 工具函数
+        function parseNumber(val) {
+            if (val === undefined || val === null) return NaN;
+            if (typeof val === 'number') return val;
+            let str = String(val).trim().replace('mm', '').replace('m', '').replace('cm', '');
+            let num = parseFloat(str);
+            return isNaN(num) ? NaN : num;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // 事件监听
+        fileInput.addEventListener('change', (e) => { 
+            if (e.target.files.length > 0) loadExcelFile(e.target.files[0]); 
+        });
+        
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            uploadArea.style.borderColor = '#3b82f6'; 
+        });
+        uploadArea.addEventListener('dragleave', () => { 
+            uploadArea.style.borderColor = '#cbd5e1'; 
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#cbd5e1';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) loadExcelFile(files[0]);
+        });
+        
+        calcWireBtn.addEventListener('click', calculateWire);
+        exportWireBtn.addEventListener('click', exportWireResults);
+        exportFillBtn.addEventListener('click', exportFillResults);
+        toggleAllDetailBtn.addEventListener('click', toggleAllDetails);
+        
+        // 参数变更自动计算
+        spreadCoeffInput.addEventListener('change', () => {
+            if (currentTab === 'wire' && isFileLoaded) calculateWire();
+        });
+        
+        wireHeightInput.addEventListener('change', () => {
+            if (currentTab === 'wire' && isFileLoaded) calculateWire();
+        });
+        
+        materialCoeffInput.addEventListener('change', () => {
+            if (currentTab === 'material' && isFileLoaded) calculateMaterial();
+        });
+        
+        widthCalcMode.addEventListener('change', () => {
+            manualWidthDiv.style.display = widthCalcMode.value === 'manual' ? 'flex' : 'none';
+            if (currentTab === 'material' && isFileLoaded) calculateMaterial();
+        });
+        
+        manualWidthInput.addEventListener('change', () => {
+            if (currentTab === 'material' && isFileLoaded) calculateMaterial();
+        });
+        
+        // 显示界面
+        console.log('✅ 道路摊铺助手初始化完成');
+    };
+</script>
+</body>
+</html>
